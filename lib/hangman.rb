@@ -1,45 +1,71 @@
-#fronzen_string_literal: true
+#frozen_string_literal: true
 
+require 'yaml'
 require_relative 'display'
+require_relative 'save_load'
 
 #class for Hangman game
 class Hangman
   include Display
+  include SaveLoad
+  attr_accessor :word, :word_progress, :guesses, :wrong_guesses_left, :possible_guesses
+
   def start_game
-    @dictionary = load_dictionary
-    @word = @dictionary.sample
-    @word_progress = Array.new(@word.length, '_')
-    @guesses = []
-    @wrong_guesses_left = 6
-    @possible_guesses = ('a'..'z').to_a
-    play_game
+    unless load_game?
+      load_dictionary
+      choose_word
+      @word_progress = Array.new(@word.length, '_')
+      @guesses = []
+      @wrong_guesses_left = 6
+      @possible_guesses = ('a'..'z').to_a
+      @save = false
+      play_game
+    end
+  end
+
+  def load_game?
+    prompt_load
+    input = gets.chomp
+    if input == '1'
+      load_save
+      return true
+    else
+      false
+    end
   end
 
   def load_dictionary
-    dictionary = []
+    @dictionary = []
     File.open('google-10000-english-no-swears.txt', 'r') do |words|
-      words.readlines.each { |word| dictionary << word.chomp if word.length in (6..13) }
+      words.readlines.each { |word| @dictionary << word.chomp if word.length in (6..13) }
     end
-    dictionary
+  end
+
+  def choose_word
+    @word = @dictionary.sample
+    @dictionary = []
+    word_chosen
   end
 
   def play_game
-    word_chosen
-    until game_over?
-      player_guess
+    until game_over? || @save
       display_board
+      player_input
     end
     end_game
   end
 
-  def player_guess
-    prompt_guess
-    guess = gets.chomp.downcase
-    if valid_guess?(guess)
-      check_guess(guess)
+  def player_input
+    prompt_input
+    input = gets.chomp.downcase
+    if input == 'save'
+      name_save
+      @save = true
+    elsif valid_guess?(input)
+      check_guess(input)
     else
       invalid_guess
-      player_guess
+      player_input
     end
   end
 
@@ -47,7 +73,6 @@ class Hangman
     if @possible_guesses.include?(guess)
       true
     else
-      invalid_guess
       false
     end
   end
@@ -77,12 +102,35 @@ class Hangman
     true if !@word_progress.include?('_') || @wrong_guesses_left == 0
   end
   def end_game
-    if !@word_progress.include?('_')
+    if @save
+      save_message
+    elsif !@word_progress.include?('_')
       display_win
     else
       display_lose
     end
     ask_play_again
     Hangman.new.start_game if gets.chomp.downcase == 'y' 
+  end
+
+  def to_yaml
+    YAML.dump ({
+      :word => @word,
+      :word_progress => @word_progress,
+      :guesses => @guesses,
+      :wrong_guesses_left => @wrong_guesses_left,
+      :possible_guesses => @possible_guesses
+    })
+  end
+
+  def from_yaml(string)
+    data = YAML.load(string)
+    game = Hangman.new
+    game.word = data[:word]
+    game.word_progress = data[:word_progress]
+    game.guesses = data[:guesses]
+    game.wrong_guesses_left = data[:wrong_guesses_left]
+    game.possible_guesses = data[:possible_guesses]
+    game.play_game
   end
 end

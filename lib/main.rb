@@ -2,4 +2,5 @@
 
 require_relative 'hangman'
 
-Hangman.new.start_game
+game = Hangman.new
+game.start_game
